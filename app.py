@@ -18,7 +18,7 @@ pickup_hour_pd = data["pickup_hour"].to_pandas()
 min_hour = int(pd.to_numeric(pickup_hour_pd.min(), errors="coerce"))
 max_hour = int(pd.to_numeric(pickup_hour_pd.max(), errors="coerce"))
 hour_range = st.sidebar.slider(
-    "Select hour range",
+    "Hour range",
     min_value=min_hour,
     max_value=max_hour,
     value=(min_hour, max_hour)
@@ -68,21 +68,22 @@ st.metric("Average Trip Duration (minutes)", round(trip_duration_mean, 3) if tri
 
 #Visualize trip distance distribution
 st.header("Top 10 pickup zones by number of trips")
-# use pandas for grouping to avoid the type-checker error and ensure compatibility with Streamlit
+# Use polars for grouping and aggregation
 import pandas as pd
 
 # Load the lookup file
 zone_lookup = pd.read_csv("taxi_zone_lookup.csv")
 
-# Group by PULocationID and count trips
+# Group by PULocationID and count trips using polars
 pickup_zone_counts = (
-    filtered_data.to_pandas()
-    .groupby("PULocationID", dropna=False)
-    .size()
-    .reset_index(name="count")
-    .sort_values("count", ascending=False)
+    filtered_data.group_by("PULocationID")
+    .agg(pl.count().alias("count"))
+    .sort("count", descending=True)
     .head(10)
 )
+
+# Convert to pandas for merging and plotting
+pickup_zone_counts = pickup_zone_counts.to_pandas()
 
 # Merge with zone lookup to get zone names
 pickup_zone_counts = pickup_zone_counts.merge(
