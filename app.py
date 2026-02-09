@@ -62,8 +62,8 @@ filtered_data = data.filter(
     (data["payment_type"].is_in(selected_payment_codes))
 )
 
-#Display summary statistics
-if page == "Summary Statistics":
+@st.cache_data(show_spinner=False)
+def summary_statistics(filtered_data):
     st.header("Summary Statistics")
     st.metric("Total Trips", filtered_data.shape[0])
     trip_distance_mean = filtered_data["trip_distance"].to_pandas().mean() if filtered_data.shape[0] > 0 else 0
@@ -73,43 +73,41 @@ if page == "Summary Statistics":
     st.metric("Average Fare Amount ($)", round(fare_amount_mean, 3) if fare_amount_mean is not None else 0)
     st.metric("Average Trip Duration (minutes)", round(trip_duration_mean, 3) if trip_duration_mean is not None else 0)
 
-#Visualize trip distance distribution
-if page == "Top Pickup Zones":
+if page == "Summary Statistics":
+    summary_statistics(filtered_data)
+
+@st.cache_data(show_spinner=False)
+def top_pickup_zones(filtered_data):
     st.header("Top 10 pickup zones by number of trips")
-    # Use polars for grouping and aggregation
     import pandas as pd
-    # Load the lookup file
     zone_lookup = pd.read_csv("taxi_zone_lookup.csv")
-    # Group by PULocationID and count trips using polars
     pickup_zone_counts = (
         filtered_data.group_by("PULocationID")
         .agg(pl.count().alias("count"))
         .sort("count", descending=True)
         .head(10)
     )
-    # Convert to pandas for merging and plotting
     pickup_zone_counts = pickup_zone_counts.to_pandas()
-    # Merge with zone lookup to get zone names
     pickup_zone_counts = pickup_zone_counts.merge(
         zone_lookup[["LocationID", "Zone"]],
         left_on="PULocationID",
         right_on="LocationID",
         how="left"
     )
-    # Display bar chart with zone names
     st.bar_chart(pickup_zone_counts, x="Zone", y="count")
 
-#Visualize fare amount distribution by hour of day
-if page == "Fare by Hour":
+if page == "Top Pickup Zones":
+    top_pickup_zones(filtered_data)
+
+@st.cache_data(show_spinner=False)
+def fare_by_hour_page(filtered_data):
     st.header("Average Fare Amount by Hour of Day")
-    # Group by hour of day and calculate average fare amount
     fare_by_hour = (
         filtered_data.to_pandas()
         .groupby("pickup_hour", dropna=False)
         .agg({"fare_amount": "mean"})
         .reset_index()
     )
-    # Create line chart using Altair
     chart = (
         alt.Chart(fare_by_hour)
         .mark_line()
@@ -121,17 +119,17 @@ if page == "Fare by Hour":
     st.altair_chart(chart, use_container_width=True)
     st.text("We can see that 4-6 AM has the highest average fare amount. The fares at other times are stable.")
 
-#Display histogram showing distribution of trip distances
-if page == "Trip Distance Distribution":
+if page == "Fare by Hour":
+    fare_by_hour_page(filtered_data)
+
+@st.cache_data(show_spinner=False)
+def trip_distance_distribution(filtered_data):
     st.header("Distribution of Trip Distances")
-    # Create histogram using Plotly, filter out extreme outliers for better visualization
     import plotly.express as px
     df_hist = filtered_data.to_pandas()
-    # Remove negative and extreme outlier trip distances
     df_hist = df_hist[(df_hist["trip_distance"] >= -1) & (df_hist["trip_distance"] <= 25)]
-    # Set explicit bin edges for more natural bins (e.g., 0-1, 1-2, ...)
     import numpy as np
-    bin_edges = np.arange(0, 25, 1)  # 1 mile bins from 0 to 25
+    bin_edges = np.arange(0, 25, 1)
     histogram_fig = px.histogram(
         df_hist,
         x="trip_distance",
@@ -144,10 +142,12 @@ if page == "Trip Distance Distribution":
     histogram_fig.update_layout(bargap=0.1)
     st.plotly_chart(histogram_fig, use_container_width=True)
 
-#Display pie chart showing proportion of trips by payment type
-if page == "Payment Type Proportion":
+if page == "Trip Distance Distribution":
+    trip_distance_distribution(filtered_data)
+
+@st.cache_data(show_spinner=False)
+def payment_type_proportion(filtered_data):
     st.header("Proportion of Trips by Payment Type")
-    # Group by payment type and count trips
     payment_type_counts = (
         filtered_data.to_pandas()
         .groupby("payment_type", dropna=False)
@@ -155,7 +155,6 @@ if page == "Payment Type Proportion":
         .reset_index(name="count")
     )
     payment_type_counts["payment_type"] = payment_type_counts["payment_type"].map(payment_type_map)
-    # Create pie chart using Altair
     pie_chart = (
         alt.Chart(payment_type_counts)
         .mark_arc()
@@ -167,17 +166,18 @@ if page == "Payment Type Proportion":
     st.altair_chart(pie_chart, use_container_width=True)
     st.text("The majority of trips are paid by credit card, followed by cash. A small percentage of trips have unknown payment types. This shows most passengers prefer cashless payments, but there is still a significant portion using cash.")
 
-#Create a heat map showing average fare amount by pickup hour and day of week
-if page == "Fare Heatmap":
+if page == "Payment Type Proportion":
+    payment_type_proportion(filtered_data)
+
+@st.cache_data(show_spinner=False)
+def fare_heatmap_page(filtered_data):
     st.header("Average Fare Amount by Pickup Hour and Day of Week")
-    # Group by pickup hour and day of week, calculate average fare amount
     fare_heatmap = (
         filtered_data.to_pandas()
         .groupby(["pickup_hour", "pickup_day_of_week"], dropna=False)
         .agg({"fare_amount": "mean"})
         .reset_index()
     )
-    # Create heatmap using Altair
     heatmap = (
         alt.Chart(fare_heatmap)
         .mark_rect()
@@ -193,3 +193,6 @@ if page == "Fare Heatmap":
     )
     st.altair_chart(heatmap, use_container_width=True)
     st.text("The heatmap shows that Wednesday 4AM has a tremendously high average fare amount, which is likely due to a small number of trips with very high fares. Other than that, the average fare amounts are relatively stable across different hours and days, with slightly higher fares during early morning hours (4-6 AM) on weekdays.")
+
+if page == "Fare Heatmap":
+    fare_heatmap_page(filtered_data)
