@@ -127,18 +127,18 @@ def trip_distance_distribution(filtered_data):
     st.header("Distribution of Trip Distances")
     import plotly.express as px
     df_hist = filtered_data.to_pandas()
-    df_hist = df_hist[(df_hist["trip_distance"] >= -1) & (df_hist["trip_distance"] <= 25)]
+    df_hist = df_hist[(df_hist["trip_distance"] >= -1) & (df_hist["trip_distance"] <= 20)]
     import numpy as np
-    bin_edges = np.arange(0, 25, 1)
+    bin_edges = np.arange(0, 20, 0.5)
     histogram_fig = px.histogram(
         df_hist,
         x="trip_distance",
         category_orders={"trip_distance": bin_edges.tolist()},
         nbins=len(bin_edges)-1,
-        title="Distribution of Trip Distances (1-25 miles)",
+        title="Distribution of Trip Distances (1-20 miles)",
         labels={"trip_distance": "Trip Distance (miles)", "count": "Number of Trips"}
     )
-    histogram_fig.update_xaxes(dtick=1, range=[0, 25])
+    histogram_fig.update_xaxes(dtick=1, range=[0, 20])
     histogram_fig.update_layout(bargap=0.1)
     st.plotly_chart(histogram_fig, use_container_width=True)
 
