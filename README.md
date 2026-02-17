@@ -48,6 +48,8 @@ Run the notebook to download the necessary data files and perform all analysis. 
 streamlit run app.py
 ```
 
+Or, you can just visit the [deployed Streamlit app](https://xn00bslayerx-big-data-a1-app-w465ed.streamlit.app/) to explore the visualizations without running the code locally.
+
 ## License
 
 This project is for educational purposes as part of a Big Data assignment.
