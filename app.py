@@ -6,7 +6,7 @@ st.title("NYC Taxi Data Analysis")
 st.write("This dashboard provides insights into the NYC taxi trips dataset. It includes summary statistics and visualizations to help you understand the data better.")
 @st.cache_data # Cache the data loading function to improve performance
 def load_data():
-    return pl.read_parquet("cleaned_trips.parquet") #! Filename may change
+    return pl.read_parquet("data/processed/cleaned_trips.parquet") #! Filename may change
 data = load_data()
 
 # Sidebar navigation
@@ -80,7 +80,7 @@ if page == "Summary Statistics":
 def top_pickup_zones(filtered_data):
     st.header("Top 10 pickup zones by number of trips")
     import pandas as pd
-    zone_lookup = pd.read_csv("taxi_zone_lookup.csv")
+    zone_lookup = pd.read_csv("data/raw/taxi_zone_lookup.csv")
     pickup_zone_counts = (
         filtered_data.group_by("PULocationID")
         .agg(pl.count().alias("count"))
@@ -187,7 +187,7 @@ def fare_heatmap_page(filtered_data):
             color=alt.Color(
                 "fare_amount:Q",
                 title="Average Fare Amount ($)",
-                scale=alt.Scale(scheme="darkblue", reverse=False)  # Higher values are darker
+                scale=alt.Scale(scheme="blues", reverse=False)
             )
         )
     )
