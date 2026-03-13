@@ -11,7 +11,6 @@ Big-Data-A2 is a data analysis and visualization project for a Big Data assignme
   - Feature engineering (temporal, trip, fare, and zone features)
   - Multiple machine learning models: Linear Regression, Random Forest (both regression and classification), and Neural Networks
   - Hyperparameter tuning using GridSearchCV and RandomizedSearchCV
-  - Interactive Streamlit dashboard for data exploration and visualization
   - Model evaluation on test set with comprehensive metrics
 
 ## Requirements
@@ -32,21 +31,13 @@ Big-Data-A2 is a data analysis and visualization project for a Big Data assignme
     pip install -r requirements.txt
     ```
 
-3. **Option A: Run the full analysis (recommended for first-time use)**
+3. Run the Jupyter Notebook to execute the full data processing and modeling workflow:
    - Launch Jupyter Notebook and open `assignment1.ipynb`:
      ```bash
      jupyter notebook assignment1.ipynb
      ```
    - Run all cells to download data, preprocess, perform feature engineering, and train models
    - This will generate processed data in `data/processed/cleaned_trips.parquet`
-
-4. **Option B: Run the interactive dashboard**
-   - Once data preprocessing is complete, launch the Streamlit app:
-     ```bash
-     streamlit run app.py
-     ```
-   - Explore interactive visualizations and apply filters to the NYC taxi data
-
 ## Files
 
 - `assignment1.ipynb`: Main Jupyter Notebook containing:
@@ -76,15 +67,6 @@ Big-Data-A2 is a data analysis and visualization project for a Big Data assignme
    - Trains and evaluates multiple models (Linear Regression, Random Forest, Neural Network)
    - Performs hyperparameter tuning on classification models
    - Outputs evaluation metrics and visualizations
-
-2. **Launch the Streamlit Dashboard** (`app.py`):
-   ```bash
-   streamlit run app.py
-   ```
-   - Provides interactive data exploration
-   - Filter by hour range, day of week, and payment type
-   - View 6 different visualizations of the NYC taxi data
-   - 
 ## Machine Learning Models
 ### Target Variables
 - **Regression Task**: Predict `tip_amount` (continuous value)
@@ -98,7 +80,7 @@ Big-Data-A2 is a data analysis and visualization project for a Big Data assignme
 5. **Neural Network** - Feedforward neural network with 2 hidden layers (PyTorch)
 
 ### Model Evaluation
-Models are evaluated on test set (25% of data) using:
+Models are evaluated on test set after training using:
 - **Regression Metrics**: MAE, RMSE, R² Score
 - **Classification Metrics**: Accuracy, Precision, Recall, F1-Score, AUC-ROC
 
@@ -108,4 +90,4 @@ Models are evaluated on test set (25% of data) using:
 - **Fare Analysis**: fare_per_mile, fare_per_minute, log_trip_distance
 - **Location**: PULocationID, DOLocationID, pickup/dropoff zones
 
-This project is for educational purposes as part of a Big Data assignment.
+This project is for educational purposes as part of a Big Data assignment. You are encouraged to explore the code, understand the data processing and modeling steps, and experiment with different features and models to improve performance.
