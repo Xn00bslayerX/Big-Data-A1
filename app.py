@@ -136,6 +136,44 @@ def predict(request: PredictionRequest):
         "model_uri": loaded_model_uri,
         "prediction_id": prediction_id,
     }
+    
+@app.post("/predict/batch") # Accept up to 100 records for batch prediction
+def predict_batch(requests: List[PredictionRequest]):
+    if model is None:
+        raise HTTPException(status_code=500, detail="Model not loaded")
+
+    if len(requests) > 100:
+        raise HTTPException(status_code=422, detail="Batch size cannot exceed 100 records")
+
+    input_data = []
+    for req in requests:
+        missing_features = [f for f in numeric_features if f not in req.features]
+        if missing_features:
+            raise HTTPException(
+                status_code=422,
+                detail={"missing_features": missing_features, "required_features": numeric_features},
+            )
+        row = []
+        for feature in numeric_features:
+            value = req.features[feature]
+            PredictionRequest(features={feature: value})
+            row.append(float(value))
+        input_data.append(row)
+
+    input_scaled = scaler.transform(input_data)
+    predictions = model.predict(input_scaled)
+    global prediction_id
+    results = []
+    for pred in predictions:
+        prediction_id += 1
+        results.append({
+            "prediction": float(pred),
+            "model_version": loaded_model_version,
+            "model_stage": loaded_model_stage,
+            "model_uri": loaded_model_uri,
+            "prediction_id": prediction_id,
+        })
+    return results
 
 
 def _get_model_versions(name: str) -> List[Dict[str, Any]]:
