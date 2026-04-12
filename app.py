@@ -34,7 +34,7 @@ if os.path.exists(processed_parquet_file):
     numeric_features = [
         col
         for col in df.columns
-        if df[col].dtype.is_numeric() and col not in {"tip_amount", "high_tip"} # Read data from all columns except target variables
+        if df[col].dtype.is_numeric() and col not in {"high_tip"}  #REVIEW -  Include tip_amount as it's part of the features the model was trained on. This is NOT normal, but we are using it for prediction as per the original feature set. In a real scenario, we would likely need to retrain the model without tip_amount as a feature if we want to predict it. This is a hack to allow the existing model to work with the current API design, but it's not ideal. We should consider retraining the model without tip_amount as a feature for a more realistic prediction scenario.
     ]
     scaler.fit(df[numeric_features].to_pandas())
     print (f"Scaler fitted on features: {numeric_features}")
@@ -67,6 +67,8 @@ def load_registered_model(name: str) -> Optional[Any]:
 model = load_registered_model(model_name)
 if model is not None:
     print(f"Model '{model_name}' loaded successfully.")
+    print(f"Model expects {model.n_features_in_} features.")
+    print(f"Scaler fitted on {len(numeric_features)} features: {numeric_features}")
 else:
     print(f"Failed to load model '{model_name}'.")
 
