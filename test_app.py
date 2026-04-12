@@ -57,7 +57,7 @@ def test_batch_prediction():
         assert "model_version" in prediction
         assert "prediction_id" in prediction
 
-# Reject invalid inputs. Multiple cases with missing fields, bad data types, and out-of-range values
+# Reject invalid inputs. Multiple cases with missing fields, bad data types, and out-of-range values. We reuse the same sample features and modify them to create different invalid scenarios.
 def test_invalid_inputs():
     # Missing required features
     response = client.post("/predict", json={"features": {"trip_distance": 5.0}})

@@ -1,4 +1,7 @@
 import os
+import subprocess
+import json
+import re
 from typing import Any, Dict, List, Optional
 
 from fastapi import FastAPI, HTTPException
@@ -108,13 +111,29 @@ class PredictionRequest(BaseModel):
         return features
 
 
+class TestResult(BaseModel):
+    test_name: str
+    passed: bool
+
+
+class TestSummary(BaseModel):
+    total_tests: int
+    passed: int
+    failed: int
+    all_passed: bool
+    tests: List[TestResult]
+
+
 @app.post("/predict")
 def predict(request: PredictionRequest):
     if model is None:
+        print("Error: Model is not loaded, cannot perform prediction.")
         raise HTTPException(status_code=500, detail="Model not loaded")
+    print (f"Received prediction request with features: {request.features}")
 
     missing_features = [f for f in numeric_features if f not in request.features]
     if missing_features:
+        print (f"Error: Missing required features: {missing_features}. Required features are: {numeric_features}")
         raise HTTPException(
             status_code=422,
             detail={"missing_features": missing_features, "required_features": numeric_features},
@@ -220,6 +239,65 @@ def model_info():
         "required_features": numeric_features,
         "registered_versions": _get_model_versions(model_name),
     }
+
+
+@app.get("/tests/run", response_model=TestSummary)
+def run_tests():
+    """Run all tests and return their results"""
+    try:
+        result = subprocess.run(
+            ["python", "-m", "pytest", "test_app.py", "-v", "--tb=short", "--json-report", "--json-report-file=test_report.json"],
+            capture_output=True,
+            text=True,
+            timeout=30
+        )
+        
+        # Parse pytest output to extract test results
+        output_lines = result.stdout.split('\n')
+        tests = []
+        passed_count = 0
+        failed_count = 0
+        
+        for line in output_lines:
+            if "PASSED" in line:
+                # Extract test name
+                test_name = line.split("::")[1].split(" ")[0] if "::" in line else "Unknown"
+                tests.append(TestResult(test_name=test_name, passed=True))
+                passed_count += 1
+            elif "FAILED" in line:
+                test_name = line.split("::")[1].split(" ")[0] if "::" in line else "Unknown"
+                tests.append(TestResult(test_name=test_name, passed=False))
+                failed_count += 1
+        
+        total = passed_count + failed_count
+        all_passed = failed_count == 0 and total > 0
+        
+        # If no tests were parsed, try to get from pytest summary line
+        if total == 0:
+            for line in output_lines:
+                if "passed" in line or "failed" in line:
+                    # Try to extract counts from summary line like "5 passed in 0.45s"
+                    passed_match = re.search(r'(\d+) passed', line)
+                    failed_match = re.search(r'(\d+) failed', line)
+                    if passed_match:
+                        passed_count = int(passed_match.group(1))
+                    if failed_match:
+                        failed_count = int(failed_match.group(1))
+                    total = passed_count + failed_count
+                    all_passed = failed_count == 0 and total > 0
+                    break
+        
+        return TestSummary(
+            total_tests=total,
+            passed=passed_count,
+            failed=failed_count,
+            all_passed=all_passed,
+            tests=tests
+        )
+    except subprocess.TimeoutExpired:
+        raise HTTPException(status_code=500, detail="Test execution timed out")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error running tests: {str(e)}")
 
 
 if __name__ == "__main__":
