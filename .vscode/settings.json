@@ -2,6 +2,7 @@
     "python.analysis.autoImportCompletions": true,
     "python-envs.defaultEnvManager": "ms-python.python:system",
     "chat.tools.terminal.autoApprove": {
-        "py": true
+        "py": true,
+        "Get-Process": true
     }
 }
