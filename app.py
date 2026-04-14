@@ -123,6 +123,9 @@ class TestSummary(BaseModel):
     all_passed: bool
     tests: List[TestResult]
 
+@app.get("/")
+def root():
+    return {"message": "API is working"} # Simple root endpoint to verify API is up and running
 
 @app.post("/predict")
 
