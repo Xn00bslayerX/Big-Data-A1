@@ -37,7 +37,7 @@ if os.path.exists(processed_parquet_file):
     numeric_features = [
         col
         for col in df.columns
-        if df[col].dtype.is_numeric() and col not in {"high_tip"}  #REVIEW -  Include tip_amount as it's part of the features the model was trained on. This is NOT normal, but we are using it for prediction as per the original feature set. In a real scenario, we would likely need to retrain the model without tip_amount as a feature if we want to predict it. This is a hack to allow the existing model to work with the current API design, but it's not ideal. We should consider retraining the model without tip_amount as a feature for a more realistic prediction scenario.
+        if df[col].dtype.is_numeric() and col not in {"high_tip", "tip_amount"}  # Exclude tip_amount to prevent data leakage since we're predicting it
     ]
     scaler.fit(df[numeric_features].to_pandas())
     print (f"Scaler fitted on features: {numeric_features}")
@@ -125,10 +125,25 @@ class TestSummary(BaseModel):
 
 
 @app.post("/predict")
+
 def predict(request: PredictionRequest):
     if model is None:
         print("Error: Model is not loaded, cannot perform prediction.")
-        raise HTTPException(status_code=500, detail="Model not loaded")
+        raise HTTPException(status_code=503, detail="Model not loaded - MLflow server may not be running")
+
+    # Check if model feature count matches our current features
+    if hasattr(model, 'n_features_in_') and model.n_features_in_ != len(numeric_features):
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "error": "Model feature mismatch",
+                "message": f"Model was trained with {model.n_features_in_} features but current configuration uses {len(numeric_features)} features. The model needs to be retrained with the corrected feature set (excluding tip_amount to prevent data leakage).",
+                "model_features": model.n_features_in_,
+                "current_features": len(numeric_features),
+                "required_features": numeric_features
+            }
+        )
+
     print (f"Received prediction request with features: {request.features}")
 
     missing_features = [f for f in numeric_features if f not in request.features]
@@ -161,7 +176,20 @@ def predict(request: PredictionRequest):
 @app.post("/predict/batch") # Accept up to 100 records for batch prediction
 def predict_batch(requests: List[PredictionRequest]):
     if model is None:
-        raise HTTPException(status_code=500, detail="Model not loaded")
+        raise HTTPException(status_code=503, detail="Model not loaded - MLflow server may not be running")
+
+    # Check if model feature count matches our current features
+    if hasattr(model, 'n_features_in_') and model.n_features_in_ != len(numeric_features):
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "error": "Model feature mismatch",
+                "message": f"Model was trained with {model.n_features_in_} features but current configuration uses {len(numeric_features)} features. The model needs to be retrained with the corrected feature set (excluding tip_amount to prevent data leakage).",
+                "model_features": model.n_features_in_,
+                "current_features": len(numeric_features),
+                "required_features": numeric_features
+            }
+        )
 
     if len(requests) > 100:
         raise HTTPException(status_code=422, detail="Batch size cannot exceed 100 records")
@@ -217,6 +245,11 @@ def _get_model_versions(name: str) -> List[Dict[str, Any]]:
 
 @app.get("/health")
 def health():
+    model_status = "loaded" if model is not None else "not_loaded"
+    feature_mismatch = False
+    if model is not None and hasattr(model, 'n_features_in_'):
+        feature_mismatch = model.n_features_in_ != len(numeric_features)
+
     return {
         "status": "ok",
         "model_loaded": model is not None,
@@ -224,11 +257,20 @@ def health():
         "model_uri": loaded_model_uri,
         "model_version": loaded_model_version,
         "model_stage": loaded_model_stage,
+        "feature_count_match": not feature_mismatch,
+        "model_features": model.n_features_in_ if model and hasattr(model, 'n_features_in_') else None,
+        "current_features": len(numeric_features),
+        "data_leakage_fixed": "tip_amount" not in numeric_features
     }
 
 
 @app.get("/model/info")
 def model_info():
+    model_status = "loaded" if model is not None else "not_loaded"
+    feature_mismatch = False
+    if model is not None and hasattr(model, 'n_features_in_'):
+        feature_mismatch = model.n_features_in_ != len(numeric_features)
+
     return {
         "model_name": model_name,
         "tracking_uri": mlflow.get_tracking_uri(),
@@ -237,6 +279,10 @@ def model_info():
         "model_version": loaded_model_version,
         "model_stage": loaded_model_stage,
         "required_features": numeric_features,
+        "feature_count": len(numeric_features),
+        "model_feature_count": model.n_features_in_ if model and hasattr(model, 'n_features_in_') else None,
+        "feature_mismatch": feature_mismatch,
+        "data_leakage_status": "fixed" if "tip_amount" not in numeric_features else "present",
         "registered_versions": _get_model_versions(model_name),
     }
 
@@ -246,7 +292,7 @@ def run_tests():
     """Run all tests and return their results"""
     try:
         result = subprocess.run(
-            ["python", "-m", "pytest", "test_app.py", "-v", "--tb=short", "--json-report", "--json-report-file=test_report.json"],
+            ["py", "-3.12", "-m", "pytest", "test_app.py", "-v", "--tb=short", "--json-report", "--json-report-file=test_report.json"],
             capture_output=True,
             text=True,
             timeout=30
