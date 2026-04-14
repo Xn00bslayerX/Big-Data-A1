@@ -32,13 +32,12 @@ sample_features = {
 # Successful single prediction with valid input
 def test_single_prediction():
     response = client.post("/predict", json={"features": sample_features})
-    # Model should be loaded but has feature mismatch - expect 409 error
-    assert response.status_code == 409
+    # Model should be loaded and working
+    assert response.status_code == 200
     data = response.json()
-    assert "detail" in data
-    assert "error" in data["detail"]
-    assert data["detail"]["error"] == "Model feature mismatch"
-    assert "tip_amount" not in data["detail"]["required_features"]
+    assert "prediction" in data
+    assert isinstance(data["prediction"], float)
+    assert data["prediction"] >= -100  # Allow negative for dummy model
 
 # Successful batch prediction with valid input
 def test_batch_prediction():
@@ -46,20 +45,20 @@ def test_batch_prediction():
         {"features": sample_features},
         {"features": {**sample_features, "trip_distance": 3.0}}
     ])
-    # Model should be loaded but has feature mismatch - expect 409 error
-    assert response.status_code == 409
+    # Model should be loaded and working
+    assert response.status_code == 200
     data = response.json()
-    assert "detail" in data
-    assert "error" in data["detail"]
-    assert data["detail"]["error"] == "Model feature mismatch"
+    assert isinstance(data, list)
+    assert len(data) == 2
+    for prediction in data:
+        assert "prediction" in prediction
+        assert isinstance(prediction["prediction"], float)
 
 # Reject invalid inputs. Multiple cases with missing fields, bad data types, and out-of-range values. We reuse the same sample features and modify them to create different invalid scenarios.
 def test_invalid_inputs():
-    # Since model is loaded but has feature mismatch, all prediction requests return 409
-    # Missing required features
+    # Missing required features - should fail with 422 (Pydantic validation)
     response = client.post("/predict", json={"features": {"trip_distance": 5.0}})
-    assert response.status_code == 409  # Feature mismatch error takes precedence
-    assert response.json()["detail"]["error"] == "Model feature mismatch"
+    assert response.status_code == 422  # Pydantic validation error for missing fields
 
     # Non-numeric feature value - this fails Pydantic validation
     invalid_features = sample_features.copy()
@@ -113,8 +112,8 @@ def test_health_check():
     assert response.status_code == 200
     data = response.json()
     assert data["status"] == "ok"
-    # Model is loaded but has feature mismatch
-    assert data.get("model_loaded") == True
-    assert data.get("data_leakage_fixed") == True
+    # Model is loaded and features match
+    assert data.get("model_loaded")
+    assert data.get("data_leakage_fixed")
     assert data.get("current_features") == 21  # Should be 21 features (excluding tip_amount)
-    assert data.get("feature_count_match") == False  # Model has mismatch (22 vs 21 features)
+    assert data.get("feature_count_match")  # Model features now match
