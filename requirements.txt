@@ -19,3 +19,4 @@ pydantic
 pytest
 fastapi
 httpx
+joblib
