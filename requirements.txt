@@ -8,7 +8,6 @@ mlflow==3.10.1
 mlflow-skinny==3.10.1
 mlflow-tracing==3.10.1
 numpy==1.26.4
-pandas==2.3.3
 plotly==5.19.0
 polars==0.20.16
 polars-runtime-32==1.38.1
