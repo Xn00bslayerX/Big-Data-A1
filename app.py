@@ -24,40 +24,45 @@ prediction_id = 0
 
 
 # Load numeric features, scaler, and model from disk
-numeric_features_path = "data/processed/numeric_features.joblib"
-scaler_path = "data/processed/scaler.joblib"
-classification_model_path = "data/processed/classification_model.joblib"
-regression_model_path = "data/processed/regression_model.joblib"
+# Use environment variables (set in docker-compose.yml) or fall back to local paths
+numeric_features_path = os.environ.get("NUMERIC_FEATURES_PATH", "data/processed/numeric_features.joblib")
+scaler_path = os.environ.get("SCALER_PATH", "data/processed/scaler.joblib")
+classification_model_path = os.environ.get("CLASSIFICATION_MODEL_PATH", "data/processed/classification_model.joblib")
+regression_model_path = os.environ.get("REGRESSION_MODEL_PATH", "data/processed/regression_model.joblib")
 
+print(f"Looking for numeric features at: {numeric_features_path}")
 if os.path.exists(numeric_features_path):
     numeric_features = joblib.load(numeric_features_path)
-    print(f"Loaded numeric features: {numeric_features}")
+    print(f"✓ Loaded numeric features: {numeric_features}")
 else:
-    print("Warning: numeric_features.joblib not found.")
+    print(f"✗ Warning: numeric_features.joblib not found at {numeric_features_path}")
 
+print(f"Looking for scaler at: {scaler_path}")
 if os.path.exists(scaler_path):
     scaler = joblib.load(scaler_path)
-    print("Scaler loaded from scaler.joblib.")
+    print(f"✓ Scaler loaded from {scaler_path}")
 else:
-    print("Warning: scaler.joblib not found.")
+    print(f"✗ Warning: scaler.joblib not found at {scaler_path}")
 
+print(f"Looking for classification model at: {classification_model_path}")
 if os.path.exists(classification_model_path):
     classification_model = joblib.load(classification_model_path)
-    print("Classification model loaded from classification_model.joblib.")
+    print(f"✓ Classification model loaded from {classification_model_path}")
     if hasattr(classification_model, 'n_features_in_'):
-        print(f"Classification model expects {classification_model.n_features_in_} features.")
+        print(f"  Classification model expects {classification_model.n_features_in_} features.")
 else:
-    print("Warning: classification_model.joblib not found.")
-    raise HTTPException(status_code=503, detail="Classification model not loaded - classification_model.joblib not found or failed to load")
+    print(f"✗ ERROR: classification_model.joblib not found at {classification_model_path}")
+    raise HTTPException(status_code=503, detail=f"Classification model not loaded - file not found at {classification_model_path}")
 
+print(f"Looking for regression model at: {regression_model_path}")
 if os.path.exists(regression_model_path):
     regression_model = joblib.load(regression_model_path)
-    print("Regression model loaded from regression_model.joblib.")
+    print(f"✓ Regression model loaded from {regression_model_path}")
     if hasattr(regression_model, 'n_features_in_'):
-        print(f"Regression model expects {regression_model.n_features_in_} features.")
+        print(f"  Regression model expects {regression_model.n_features_in_} features.")
 else:
-    print("Warning: regression_model.joblib not found.")
-    raise HTTPException(status_code=503, detail="Regression model not loaded - regression_model.joblib not found or failed to load")
+    print(f"✗ ERROR: regression_model.joblib not found at {regression_model_path}")
+    raise HTTPException(status_code=503, detail=f"Regression model not loaded - file not found at {regression_model_path}")
 
 
 
@@ -309,4 +314,3 @@ if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
 else:
     print("Running in production mode")
-

@@ -7,7 +7,8 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - MODEL_PATH=/app/data/processed/model.joblib
+      - CLASSIFICATION_MODEL_PATH=/app/data/processed/classification_model.joblib
+      - REGRESSION_MODEL_PATH=/app/data/processed/regression_model.joblib
       - SCALER_PATH=/app/data/processed/scaler.joblib
       - NUMERIC_FEATURES_PATH=/app/data/processed/numeric_features.joblib
       - MLFLOW_TRACKING_URI=http://mlflow:5000
@@ -25,6 +26,7 @@ services:
     command: mlflow server --host 0.0.0.0 --port 5000 --backend-store-uri /mlflow/mlruns --default-artifact-root /mlflow/mlruns
     volumes:
       - ./mlruns:/mlflow/mlruns
+      - ./data:/app/data
     ports:
       - "5000:5000"
     networks:
