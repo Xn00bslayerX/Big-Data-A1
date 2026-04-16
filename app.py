@@ -5,9 +5,7 @@ import re
 from typing import Any, Dict, List, Optional
 
 from fastapi import FastAPI, HTTPException
-import mlflow
-import mlflow.sklearn
-from mlflow.tracking import MlflowClient
+import joblib
 from pydantic import BaseModel, validator
 from sklearn.preprocessing import StandardScaler
 import numpy as np
@@ -16,64 +14,44 @@ import uvicorn
 
 app = FastAPI()
 
-# Set MLflow tracking URI
-mlflow.set_tracking_uri("http://localhost:5000")
-mlflow_client = MlflowClient()
 
-# All model-related variables are defined at the module level for better visibility and management. This also makes Pylance's static analysis more effective in identifying issues with model loading and usage.
-model_name = "TaxiTipRandomForestRegressor"
+
+
+# Model and scaler loading
 model: Optional[Any] = None
-loaded_model_uri: Optional[str] = None
-loaded_model_version: Optional[str] = None
-loaded_model_stage: Optional[str] = None
 numeric_features: List[str] = []
 scaler = StandardScaler()
 global prediction_id
 prediction_id = 0
 
-processed_parquet_file = "data/processed/cleaned_trips.parquet"
-if os.path.exists(processed_parquet_file):
-    df = pl.read_parquet(processed_parquet_file)
-    numeric_features = [
-        col
-        for col in df.columns
-        if df[col].dtype.is_numeric() and col not in {"high_tip", "tip_amount"}  # Exclude tip_amount to prevent data leakage since we're predicting it
-    ]
-    scaler.fit(df[numeric_features].to_pandas())
-    print (f"Scaler fitted on features: {numeric_features}")
+
+# Load numeric features, scaler, and model from disk
+numeric_features_path = "data/processed/numeric_features.joblib"
+scaler_path = "data/processed/scaler.joblib"
+model_path = "data/processed/model.joblib"
+
+if os.path.exists(numeric_features_path):
+    numeric_features = joblib.load(numeric_features_path)
+    print(f"Loaded numeric features: {numeric_features}")
 else:
-    print("Warning: Processed data not found, scaler not fitted properly.")
+    print("Warning: numeric_features.joblib not found.")
 
-
-def load_registered_model(name: str) -> Optional[Any]:
-    global loaded_model_uri, loaded_model_version, loaded_model_stage
-
-    try:
-        production_versions = mlflow_client.get_latest_versions(name, stages=["Production"])
-        source_version = production_versions[0] if production_versions else None
-
-        if source_version is None:
-            all_versions = mlflow_client.get_latest_versions(name)
-            if not all_versions:
-                raise ValueError(f"No registered versions found for model '{name}'")
-            source_version = sorted(all_versions, key=lambda v: int(v.version), reverse=True)[0]
-
-        loaded_model_version = source_version.version
-        loaded_model_stage = source_version.current_stage
-        loaded_model_uri = f"models:/{name}/{loaded_model_version}"
-        print (f"Loading model '{name}' version {loaded_model_version} from stage '{loaded_model_stage}' at URI: {loaded_model_uri}")
-        return mlflow.sklearn.load_model(loaded_model_uri)
-    except Exception as exc:
-        print(f"Error loading registered model '{name}': {exc}")
-        return None
-
-model = load_registered_model(model_name)
-if model is not None:
-    print(f"Model '{model_name}' loaded successfully.")
-    print(f"Model expects {model.n_features_in_} features.")
-    print(f"Scaler fitted on {len(numeric_features)} features: {numeric_features}")
+if os.path.exists(scaler_path):
+    scaler = joblib.load(scaler_path)
+    print("Scaler loaded from scaler.joblib.")
 else:
-    print(f"Failed to load model '{model_name}'.")
+    print("Warning: scaler.joblib not found.")
+
+if os.path.exists(model_path):
+    model = joblib.load(model_path)
+    print("Model loaded from model.joblib.")
+    if hasattr(model, 'n_features_in_'):
+        print(f"Model expects {model.n_features_in_} features.")
+else:
+    print("Warning: model.joblib not found.")
+
+
+
 
 
 class PredictionRequest(BaseModel):
@@ -130,9 +108,10 @@ def root():
 @app.post("/predict")
 
 def predict(request: PredictionRequest):
+
     if model is None:
         print("Error: Model is not loaded, cannot perform prediction.")
-        raise HTTPException(status_code=503, detail="Model not loaded - MLflow server may not be running")
+        raise HTTPException(status_code=503, detail="Model not loaded - model.joblib not found or failed to load")
 
     # Check if model feature count matches our current features
     if hasattr(model, 'n_features_in_') and model.n_features_in_ != len(numeric_features):
@@ -170,16 +149,13 @@ def predict(request: PredictionRequest):
     prediction_id += 1
     return {
         "prediction": float(prediction),
-        "model_version": loaded_model_version,
-        "model_stage": loaded_model_stage,
-        "model_uri": loaded_model_uri,
         "prediction_id": prediction_id,
     }
     
 @app.post("/predict/batch") # Accept up to 100 records for batch prediction
 def predict_batch(requests: List[PredictionRequest]):
     if model is None:
-        raise HTTPException(status_code=503, detail="Model not loaded - MLflow server may not be running")
+        raise HTTPException(status_code=503, detail="Model not loaded - model.joblib not found or failed to load")
 
     # Check if model feature count matches our current features
     if hasattr(model, 'n_features_in_') and model.n_features_in_ != len(numeric_features):
@@ -220,30 +196,12 @@ def predict_batch(requests: List[PredictionRequest]):
         prediction_id += 1
         results.append({
             "prediction": float(pred),
-            "model_version": loaded_model_version,
-            "model_stage": loaded_model_stage,
-            "model_uri": loaded_model_uri,
             "prediction_id": prediction_id,
         })
     return results
 
 
-def _get_model_versions(name: str) -> List[Dict[str, Any]]:
-    try:
-        versions = mlflow_client.search_model_versions(f"name='{name}'")
-        return [
-            {
-                "version": v.version,
-                "stage": v.current_stage,
-                "status": v.status,
-                "run_id": v.run_id,
-                "source": v.source,
-                "creation_timestamp": v.creation_timestamp,
-            }
-            for v in versions
-        ]
-    except Exception:
-        return []
+
 
 
 @app.get("/health")
@@ -257,9 +215,6 @@ def health():
         "status": "ok",
         "model_loaded": model is not None,
         "scaler_fitted": bool(numeric_features),
-        "model_uri": loaded_model_uri,
-        "model_version": loaded_model_version,
-        "model_stage": loaded_model_stage,
         "feature_count_match": not feature_mismatch,
         "model_features": model.n_features_in_ if model and hasattr(model, 'n_features_in_') else None,
         "current_features": len(numeric_features),
@@ -275,18 +230,12 @@ def model_info():
         feature_mismatch = model.n_features_in_ != len(numeric_features)
 
     return {
-        "model_name": model_name,
-        "tracking_uri": mlflow.get_tracking_uri(),
         "model_loaded": model is not None,
-        "model_uri": loaded_model_uri,
-        "model_version": loaded_model_version,
-        "model_stage": loaded_model_stage,
         "required_features": numeric_features,
         "feature_count": len(numeric_features),
         "model_feature_count": model.n_features_in_ if model and hasattr(model, 'n_features_in_') else None,
         "feature_mismatch": feature_mismatch,
         "data_leakage_status": "fixed" if "tip_amount" not in numeric_features else "present",
-        "registered_versions": _get_model_versions(model_name),
     }
 
 
