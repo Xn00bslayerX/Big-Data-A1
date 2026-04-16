@@ -19,3 +19,5 @@ mlruns/
 *.log
 
 .pytest_cache/
+
+debugging/
