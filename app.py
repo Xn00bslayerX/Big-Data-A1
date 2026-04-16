@@ -8,8 +8,6 @@ from fastapi import FastAPI, HTTPException
 import joblib
 from pydantic import BaseModel, validator
 from sklearn.preprocessing import StandardScaler
-import numpy as np
-import polars as pl
 import uvicorn
 
 app = FastAPI()

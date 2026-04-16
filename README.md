@@ -82,6 +82,8 @@ curl -X POST "http://localhost:8000/predict" -H "Content-Type: application/json"
 }'
 ```
 
+For ease of testing, use the [Swagger UI](http://localhost:8000/docs) to interact with the API and make prediction requests without needing to craft `curl` commands.
+
 See `DOCKER_COMPOSE_QUICKSTART.md` for more examples.
 
 ### 5. Run Tests
