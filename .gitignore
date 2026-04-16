@@ -5,3 +5,4 @@ __pycache__/
 # MLflow tracking server data. This should be generated programmatically and not committed to version control.
 mlruns/
 mlruns
+mlflow.db

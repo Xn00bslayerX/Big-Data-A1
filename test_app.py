@@ -26,8 +26,9 @@ sample_features = {
     "log_trip_distance": 1.609,
     "fare_per_mile": 4.0,
     "fare_per_minute": 1.333,
-    "pickup_hour": 14.0
+    "pickup_hour": 14.0,
 }
+
 
 # Successful single prediction with valid input
 def test_single_prediction():
@@ -39,12 +40,16 @@ def test_single_prediction():
     assert isinstance(data["prediction"], float)
     assert data["prediction"] >= -100  # Allow negative for dummy model
 
+
 # Successful batch prediction with valid input
 def test_batch_prediction():
-    response = client.post("/predict/batch", json=[
-        {"features": sample_features},
-        {"features": {**sample_features, "trip_distance": 3.0}}
-    ])
+    response = client.post(
+        "/predict/batch",
+        json=[
+            {"features": sample_features},
+            {"features": {**sample_features, "trip_distance": 3.0}},
+        ],
+    )
     # Model should be loaded and working
     assert response.status_code == 200
     data = response.json()
@@ -54,6 +59,7 @@ def test_batch_prediction():
         assert "prediction" in prediction
         assert isinstance(prediction["prediction"], float)
 
+
 # Reject invalid inputs. Multiple cases with missing fields, bad data types, and out-of-range values. We reuse the same sample features and modify them to create different invalid scenarios.
 def test_invalid_inputs():
     # Missing required features - should fail with 422 (Pydantic validation)
@@ -62,7 +68,7 @@ def test_invalid_inputs():
 
     # Non-numeric feature value - this fails Pydantic validation
     invalid_features = sample_features.copy()
-    invalid_features["trip_distance"] = "far" # type: ignore
+    invalid_features["trip_distance"] = "far"  # type: ignore
     response = client.post("/predict", json={"features": invalid_features})
     assert response.status_code == 422  # Pydantic validation error
 
@@ -89,8 +95,9 @@ def test_invalid_inputs():
     invalid_features["pickup_hour"] = 25.0
     response = client.post("/predict", json={"features": invalid_features})
     assert response.status_code == 422  # Pydantic validation error
-    
-    #NOTE - The assignment specification says at least 5 test cases. However, this test function includes 6 different invalid input scenarios, which should be sufficient to cover a range of common input validation issues. I thought it more appropriate to include multiple cases in one test function since they all relate to invalid input handling, rather than creating separate test functions for each case.
+
+    # NOTE - The assignment specification says at least 5 test cases. However, this test function includes 6 different invalid input scenarios, which should be sufficient to cover a range of common input validation issues. I thought it more appropriate to include multiple cases in one test function since they all relate to invalid input handling, rather than creating separate test functions for each case.
+
 
 def test_edge_values():
     # Zero trip distance - this fails Pydantic validation
@@ -105,8 +112,9 @@ def test_edge_values():
     response = client.post("/predict", json={"features": edge_features})
     assert response.status_code == 422  # Pydantic validation error
 
-    #NOTE - The assignment specification says at least 5 test cases. However, this test function includes 2 different edge value scenarios, which should be sufficient to cover common edge cases related to zero values. I thought it more appropriate to include multiple cases in one test function since they all relate to edge value handling, rather than creating separate test functions for each case.
-    
+    # NOTE - The assignment specification says at least 5 test cases. However, this test function includes 2 different edge value scenarios, which should be sufficient to cover common edge cases related to zero values. I thought it more appropriate to include multiple cases in one test function since they all relate to edge value handling, rather than creating separate test functions for each case.
+
+
 def test_health_check():
     response = client.get("/health")
     assert response.status_code == 200
@@ -115,5 +123,7 @@ def test_health_check():
     # Model is loaded and features match
     assert data.get("model_loaded")
     assert data.get("data_leakage_fixed")
-    assert data.get("current_features") == 21  # Should be 21 features (excluding tip_amount)
+    assert (
+        data.get("current_features") == 21
+    )  # Should be 21 features (excluding tip_amount)
     assert data.get("feature_count_match")  # Model features now match

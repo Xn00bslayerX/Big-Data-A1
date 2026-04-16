@@ -13,8 +13,6 @@ import uvicorn
 app = FastAPI()
 
 
-
-
 # Model and scaler loading
 model: Optional[Any] = None
 numeric_features: List[str] = []
@@ -25,10 +23,16 @@ prediction_id = 0
 
 # Load numeric features, scaler, and model from disk
 # Use environment variables (set in docker-compose.yml) or fall back to local paths
-numeric_features_path = os.environ.get("NUMERIC_FEATURES_PATH", "data/processed/numeric_features.joblib")
+numeric_features_path = os.environ.get(
+    "NUMERIC_FEATURES_PATH", "data/processed/numeric_features.joblib"
+)
 scaler_path = os.environ.get("SCALER_PATH", "data/processed/scaler.joblib")
-classification_model_path = os.environ.get("CLASSIFICATION_MODEL_PATH", "data/processed/classification_model.joblib")
-regression_model_path = os.environ.get("REGRESSION_MODEL_PATH", "data/processed/regression_model.joblib")
+classification_model_path = os.environ.get(
+    "CLASSIFICATION_MODEL_PATH", "data/processed/classification_model.joblib"
+)
+regression_model_path = os.environ.get(
+    "REGRESSION_MODEL_PATH", "data/processed/regression_model.joblib"
+)
 
 print(f"Looking for numeric features at: {numeric_features_path}")
 if os.path.exists(numeric_features_path):
@@ -48,24 +52,31 @@ print(f"Looking for classification model at: {classification_model_path}")
 if os.path.exists(classification_model_path):
     classification_model = joblib.load(classification_model_path)
     print(f"✓ Classification model loaded from {classification_model_path}")
-    if hasattr(classification_model, 'n_features_in_'):
-        print(f"  Classification model expects {classification_model.n_features_in_} features.")
+    if hasattr(classification_model, "n_features_in_"):
+        print(
+            f"  Classification model expects {classification_model.n_features_in_} features."
+        )
 else:
-    print(f"✗ ERROR: classification_model.joblib not found at {classification_model_path}")
-    raise HTTPException(status_code=503, detail=f"Classification model not loaded - file not found at {classification_model_path}")
+    print(
+        f"✗ ERROR: classification_model.joblib not found at {classification_model_path}"
+    )
+    raise HTTPException(
+        status_code=503,
+        detail=f"Classification model not loaded - file not found at {classification_model_path}",
+    )
 
 print(f"Looking for regression model at: {regression_model_path}")
 if os.path.exists(regression_model_path):
     regression_model = joblib.load(regression_model_path)
     print(f"✓ Regression model loaded from {regression_model_path}")
-    if hasattr(regression_model, 'n_features_in_'):
+    if hasattr(regression_model, "n_features_in_"):
         print(f"  Regression model expects {regression_model.n_features_in_} features.")
 else:
     print(f"✗ ERROR: regression_model.joblib not found at {regression_model_path}")
-    raise HTTPException(status_code=503, detail=f"Regression model not loaded - file not found at {regression_model_path}")
-
-
-
+    raise HTTPException(
+        status_code=503,
+        detail=f"Regression model not loaded - file not found at {regression_model_path}",
+    )
 
 
 class PredictionRequest(BaseModel):
@@ -115,20 +126,28 @@ class TestSummary(BaseModel):
     all_passed: bool
     tests: List[TestResult]
 
+
 @app.get("/")
 def root():
-    return {"message": "API is working"} # Simple root endpoint to verify API is up and running
+    return {
+        "message": "API is working"
+    }  # Simple root endpoint to verify API is up and running
+
 
 @app.post("/predict")
-
 def predict(request: PredictionRequest):
 
     if model is None:
         print("Error: Model is not loaded, cannot perform prediction.")
-        raise HTTPException(status_code=503, detail="Model not loaded - model.joblib not found or failed to load")
+        raise HTTPException(
+            status_code=503,
+            detail="Model not loaded - model.joblib not found or failed to load",
+        )
 
     # Check if model feature count matches our current features
-    if hasattr(model, 'n_features_in_') and model.n_features_in_ != len(numeric_features):
+    if hasattr(model, "n_features_in_") and model.n_features_in_ != len(
+        numeric_features
+    ):
         raise HTTPException(
             status_code=409,
             detail={
@@ -136,18 +155,23 @@ def predict(request: PredictionRequest):
                 "message": f"Model was trained with {model.n_features_in_} features but current configuration uses {len(numeric_features)} features. The model needs to be retrained with the corrected feature set (excluding tip_amount to prevent data leakage).",
                 "model_features": model.n_features_in_,
                 "current_features": len(numeric_features),
-                "required_features": numeric_features
-            }
+                "required_features": numeric_features,
+            },
         )
 
-    print (f"Received prediction request with features: {request.features}")
+    print(f"Received prediction request with features: {request.features}")
 
     missing_features = [f for f in numeric_features if f not in request.features]
     if missing_features:
-        print (f"Error: Missing required features: {missing_features}. Required features are: {numeric_features}")
+        print(
+            f"Error: Missing required features: {missing_features}. Required features are: {numeric_features}"
+        )
         raise HTTPException(
             status_code=422,
-            detail={"missing_features": missing_features, "required_features": numeric_features},
+            detail={
+                "missing_features": missing_features,
+                "required_features": numeric_features,
+            },
         )
 
     input_data = []
@@ -165,14 +189,20 @@ def predict(request: PredictionRequest):
         "prediction": float(prediction),
         "prediction_id": prediction_id,
     }
-    
-@app.post("/predict/batch") # Accept up to 100 records for batch prediction
+
+
+@app.post("/predict/batch")  # Accept up to 100 records for batch prediction
 def predict_batch(requests: List[PredictionRequest]):
     if model is None:
-        raise HTTPException(status_code=503, detail="Model not loaded - model.joblib not found or failed to load")
+        raise HTTPException(
+            status_code=503,
+            detail="Model not loaded - model.joblib not found or failed to load",
+        )
 
     # Check if model feature count matches our current features
-    if hasattr(model, 'n_features_in_') and model.n_features_in_ != len(numeric_features):
+    if hasattr(model, "n_features_in_") and model.n_features_in_ != len(
+        numeric_features
+    ):
         raise HTTPException(
             status_code=409,
             detail={
@@ -180,12 +210,14 @@ def predict_batch(requests: List[PredictionRequest]):
                 "message": f"Model was trained with {model.n_features_in_} features but current configuration uses {len(numeric_features)} features. The model needs to be retrained with the corrected feature set (excluding tip_amount to prevent data leakage).",
                 "model_features": model.n_features_in_,
                 "current_features": len(numeric_features),
-                "required_features": numeric_features
-            }
+                "required_features": numeric_features,
+            },
         )
 
     if len(requests) > 100:
-        raise HTTPException(status_code=422, detail="Batch size cannot exceed 100 records")
+        raise HTTPException(
+            status_code=422, detail="Batch size cannot exceed 100 records"
+        )
 
     input_data = []
     for req in requests:
@@ -193,7 +225,10 @@ def predict_batch(requests: List[PredictionRequest]):
         if missing_features:
             raise HTTPException(
                 status_code=422,
-                detail={"missing_features": missing_features, "required_features": numeric_features},
+                detail={
+                    "missing_features": missing_features,
+                    "required_features": numeric_features,
+                },
             )
         row = []
         for feature in numeric_features:
@@ -208,20 +243,19 @@ def predict_batch(requests: List[PredictionRequest]):
     results = []
     for pred in predictions:
         prediction_id += 1
-        results.append({
-            "prediction": float(pred),
-            "prediction_id": prediction_id,
-        })
+        results.append(
+            {
+                "prediction": float(pred),
+                "prediction_id": prediction_id,
+            }
+        )
     return results
-
-
-
 
 
 @app.get("/health")
 def health():
     feature_mismatch = False
-    if model is not None and hasattr(model, 'n_features_in_'):
+    if model is not None and hasattr(model, "n_features_in_"):
         feature_mismatch = model.n_features_in_ != len(numeric_features)
 
     return {
@@ -229,25 +263,31 @@ def health():
         "model_loaded": model is not None,
         "scaler_fitted": bool(numeric_features),
         "feature_count_match": not feature_mismatch,
-        "model_features": model.n_features_in_ if model and hasattr(model, 'n_features_in_') else None,
+        "model_features": model.n_features_in_
+        if model and hasattr(model, "n_features_in_")
+        else None,
         "current_features": len(numeric_features),
-        "data_leakage_fixed": "tip_amount" not in numeric_features
+        "data_leakage_fixed": "tip_amount" not in numeric_features,
     }
 
 
 @app.get("/model/info")
 def model_info():
     feature_mismatch = False
-    if model is not None and hasattr(model, 'n_features_in_'):
+    if model is not None and hasattr(model, "n_features_in_"):
         feature_mismatch = model.n_features_in_ != len(numeric_features)
 
     return {
         "model_loaded": model is not None,
         "required_features": numeric_features,
         "feature_count": len(numeric_features),
-        "model_feature_count": model.n_features_in_ if model and hasattr(model, 'n_features_in_') else None,
+        "model_feature_count": model.n_features_in_
+        if model and hasattr(model, "n_features_in_")
+        else None,
         "feature_mismatch": feature_mismatch,
-        "data_leakage_status": "fixed" if "tip_amount" not in numeric_features else "present",
+        "data_leakage_status": "fixed"
+        if "tip_amount" not in numeric_features
+        else "present",
     }
 
 
@@ -256,39 +296,53 @@ def run_tests():
     """Run all tests and return their results"""
     try:
         result = subprocess.run(
-            ["py", "-3.12", "-m", "pytest", "test_app.py", "-v", "--tb=short", "--json-report", "--json-report-file=test_report.json"],
+            [
+                "py",
+                "-3.12",
+                "-m",
+                "pytest",
+                "test_app.py",
+                "-v",
+                "--tb=short",
+                "--json-report",
+                "--json-report-file=test_report.json",
+            ],
             capture_output=True,
             text=True,
-            timeout=30
+            timeout=30,
         )
-        
+
         # Parse pytest output to extract test results
-        output_lines = result.stdout.split('\n')
+        output_lines = result.stdout.split("\n")
         tests = []
         passed_count = 0
         failed_count = 0
-        
+
         for line in output_lines:
             if "PASSED" in line:
                 # Extract test name
-                test_name = line.split("::")[1].split(" ")[0] if "::" in line else "Unknown"
+                test_name = (
+                    line.split("::")[1].split(" ")[0] if "::" in line else "Unknown"
+                )
                 tests.append(TestResult(test_name=test_name, passed=True))
                 passed_count += 1
             elif "FAILED" in line:
-                test_name = line.split("::")[1].split(" ")[0] if "::" in line else "Unknown"
+                test_name = (
+                    line.split("::")[1].split(" ")[0] if "::" in line else "Unknown"
+                )
                 tests.append(TestResult(test_name=test_name, passed=False))
                 failed_count += 1
-        
+
         total = passed_count + failed_count
         all_passed = failed_count == 0 and total > 0
-        
+
         # If no tests were parsed, try to get from pytest summary line
         if total == 0:
             for line in output_lines:
                 if "passed" in line or "failed" in line:
                     # Try to extract counts from summary line like "5 passed in 0.45s"
-                    passed_match = re.search(r'(\d+) passed', line)
-                    failed_match = re.search(r'(\d+) failed', line)
+                    passed_match = re.search(r"(\d+) passed", line)
+                    failed_match = re.search(r"(\d+) failed", line)
                     if passed_match:
                         passed_count = int(passed_match.group(1))
                     if failed_match:
@@ -296,13 +350,13 @@ def run_tests():
                     total = passed_count + failed_count
                     all_passed = failed_count == 0 and total > 0
                     break
-        
+
         return TestSummary(
             total_tests=total,
             passed=passed_count,
             failed=failed_count,
             all_passed=all_passed,
-            tests=tests
+            tests=tests,
         )
     except subprocess.TimeoutExpired:
         raise HTTPException(status_code=500, detail="Test execution timed out")
