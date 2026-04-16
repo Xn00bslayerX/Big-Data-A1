@@ -12,6 +12,8 @@ services:
       - SCALER_PATH=/app/data/processed/scaler.joblib
       - NUMERIC_FEATURES_PATH=/app/data/processed/numeric_features.joblib
       - MLFLOW_TRACKING_URI=http://mlflow:5000
+    volumes:
+      - ./data:/app/data
     depends_on:
       - mlflow
     networks:
@@ -26,7 +28,6 @@ services:
     command: mlflow server --host 0.0.0.0 --port 5000 --backend-store-uri /mlflow/mlruns --default-artifact-root /mlflow/mlruns
     volumes:
       - ./mlruns:/mlflow/mlruns
-      - ./data:/app/data
     ports:
       - "5000:5000"
     networks:
