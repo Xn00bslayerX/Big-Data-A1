@@ -1,111 +1,147 @@
-# Big-Data-A2
 
-Big-Data-A2 is a data analysis and visualization project for a Big Data assignment. The project uses Python and Jupyter Notebook to explore, analyze, and visualize datasets relevant to the assignment objectives.
+# Big-Data-A4
 
-## Project Overview
+This project predicts NYC taxi trip tips and passenger tipping behavior using machine learning models trained on real taxi trip data (January 2024). It provides:
 
-- **Purpose:**  
-  Predict NYC taxi trip tips and passenger tipping behavior using machine learning models trained on real taxi trip data (January 2024).
-- **Features:**  
-  - Automated data download and preprocessing from NYC Taxi & Limousine Commission
-  - Feature engineering (temporal, trip, fare, and zone features)
-  - Multiple machine learning models: Linear Regression, Random Forest (both regression and classification), and Neural Networks
-  - Hyperparameter tuning using GridSearchCV and RandomizedSearchCV
-  - Interactive Streamlit dashboard for data exploration and visualization
-  - Model evaluation on test set with comprehensive metrics
+- Data analysis and feature engineering in Jupyter Notebooks
+- A production-ready FastAPI prediction service (with Docker support)
+- MLflow tracking for experiment management
+- Automated tests for API and model validation
+
+## Project Structure & Workflow
+
+- **Jupyter Notebooks**: Data download, preprocessing, feature engineering, model training, and evaluation (`assignment1.ipynb`, `assignment1_executed.ipynb`).
+- **FastAPI Service**: REST API for predictions (`app.py`).
+- **MLflow**: Experiment tracking and model registry (runs as a service via Docker Compose).
+- **Docker Compose**: Orchestrates API and MLflow services for local development/production.
+- **Automated Tests**: API and model validation (`test_app.py`).
 
 ## Requirements
 
-- Python 3.8 or higher
-- Jupyter Notebook
-- Required libraries listed in `requirements.txt`
+- Python 3.10 or higher
+- Docker & Docker Compose (for containerized workflow)
+- Jupyter Notebook (for interactive analysis)
+- See `requirements.txt` and `requirements.prod.txt` for dependencies
 
-## Setup Instructions
+## Getting Started
 
-1. Clone the repository and navigate to the project directory:
-    ```bash
-    cd Big-Data-A1
-    ```
+### 1. Clone the repository
 
-2. Install the required libraries:
-    ```bash
-    pip install -r requirements.txt
-    ```
+### 2. Run Data Analysis & Model Training (Jupyter Notebook)
 
-3. **Option A: Run the full analysis (recommended for first-time use)**
-   - Launch Jupyter Notebook and open `assignment1.ipynb`:
-     ```bash
-     jupyter notebook assignment1.ipynb
-     ```
-   - Run all cells to download data, preprocess, perform feature engineering, and train models
-   - This will generate processed data in `data/processed/cleaned_trips.parquet`
+```bash
+jupyter notebook assignment1.ipynb
+```
 
-4. **Option B: Run the interactive dashboard**
-   - Once data preprocessing is complete, launch the Streamlit app:
-     ```bash
-     streamlit run app.py
-     ```
-   - Explore interactive visualizations and apply filters to the NYC taxi data
+Run all cells to download data, preprocess, engineer features, and train models. This will generate processed data and model artifacts in `data/processed/`. An internet connection is needed to connect to the server to download the data files.
 
-## Files
+### 3. Run the API & MLflow with Docker Compose
 
-- `assignment1.ipynb`: Main Jupyter Notebook containing:
-  - Data download and validation
-  - Data cleaning and preprocessing
-  - Feature engineering (temporal, trip, fare, and zone features)
-  - Target variable creation (tip_amount and high_tip classification)
-  - Train/validation/test split
-  - Feature scaling with StandardScaler
-  - Multiple ML models: Linear Regression, Random Forest Regressor/Classifier, and Neural Network
-  - Hyperparameter tuning with RandomizedSearchCV
-  - Model evaluation and visualization
+Build and start all services:
 
-- `requirements.txt`: List of Python dependencies (23 packages)
+```bash
+docker compose up --build
+```
 
-- `data/`: Directory containing:
-  - `raw/`: Downloaded raw data files (yellow_tripdata_2024-01.parquet, taxi_zone_lookup.csv)
-  - `processed/`: Cleaned and engineered data (cleaned_trips.parquet)
+This launches:
 
-## Usage
+- **API** (<http://localhost:8000>): FastAPI prediction service
+- **MLflow** (<http://localhost:5000>): Experiment tracking UI
 
-### Full Workflow
-1. **Run the Jupyter Notebook** (`assignment1.ipynb`):
-   - Downloads NYC taxi trip data (January 2024) and taxi zone lookup data automatically
-   - Cleans and validates the data
-   - Engineers features for machine learning
-   - Trains and evaluates multiple models (Linear Regression, Random Forest, Neural Network)
-   - Performs hyperparameter tuning on classification models
-   - Outputs evaluation metrics and visualizations
+The API loads the trained model and exposes endpoints for prediction and health checks.
 
-2. **Launch the Streamlit Dashboard** (`app.py`):
-   ```bash
-   streamlit run app.py
-   ```
-   - Provides interactive data exploration
-   - Filter by hour range, day of week, and payment type
-   - View 6 different visualizations of the NYC taxi data
-   - 
+### 4. Make Prediction Requests
+
+Example (single prediction):
+
+```bash
+curl -X POST "http://localhost:8000/predict" -H "Content-Type: application/json" -d '{
+  "features": {
+    "VendorID": 1.0,
+    "passenger_count": 2.0,
+    "trip_distance": 5.0,
+    "RatecodeID": 1.0,
+    "PULocationID": 100.0,
+    "DOLocationID": 200.0,
+    "payment_type": 1.0,
+    "fare_amount": 20.0,
+    "extra": 0.5,
+    "mta_tax": 0.5,
+    "tolls_amount": 0.0,
+    "improvement_surcharge": 0.3,
+    "total_amount": 21.3,
+    "congestion_surcharge": 2.5,
+    "Airport_fee": 0.0,
+    "trip_duration_minutes": 15.0,
+    "trip_speed_mph": 20.0,
+    "log_trip_distance": 1.609,
+    "fare_per_mile": 4.0,
+    "fare_per_minute": 1.333,
+    "pickup_hour": 14.0
+  }
+}'
+```
+
+See `DOCKER_COMPOSE_QUICKSTART.md` for more examples.
+
+### 5. Run Tests
+
+Tests are provided for API endpoints and input validation:
+
+```bash
+pytest test_app.py
+```
+
+Or trigger tests via the API:
+
+```bash
+curl http://localhost:8000/tests/run
+```
+
+### 6. Shut Down
+
+```bash
+docker compose down
+```
+
+## Key Files & Directories
+
+- `assignment1.ipynb` / `assignment1_executed.ipynb`: Data analysis, feature engineering, model training
+- `app.py`: FastAPI prediction service (loads model, exposes `/predict`, `/health`, `/tests/run` endpoints)
+- `test_app.py`: Automated tests for API/model
+- `docker-compose.yml`: Orchestrates API and MLflow services
+- `Dockerfile`: Containerizes the API for production
+- `requirements.txt` / `requirements.prod.txt`: Development and production dependencies
+- `data/`: This is generated from running. Not found in the repository.
+  - `raw/`: Downloaded source data
+  - `processed/`: Cleaned data, trained model, scaler, and feature list (`model.joblib`, `scaler.joblib`, `numeric_features.joblib`)
+- `mlruns/`: MLflow experiment tracking and model registry
+
 ## Machine Learning Models
-### Target Variables
-- **Regression Task**: Predict `tip_amount` (continuous value)
-- **Classification Task**: Predict `high_tip` (binary: 1 if tip > 20% of fare, else 0)
 
-### Models Trained
-1. **Linear Regression** - Baseline regression model
-2. **Random Forest Regressor** - Ensemble regression model with hyperparameter tuning
-3. **Random Forest Classifier** - Ensemble classification model with hyperparameter tuning
-4. **Logistic Regression** - Linear classification model
-5. **Neural Network** - Feedforward neural network with 2 hidden layers (PyTorch)
+**Target Variables:**
 
-### Model Evaluation
-Models are evaluated on test set (25% of data) using:
-- **Regression Metrics**: MAE, RMSE, R² Score
-- **Classification Metrics**: Accuracy, Precision, Recall, F1-Score, AUC-ROC
+- Regression: `tip_amount` (continuous)
+- Classification: `high_tip` (binary: tip > 20% of fare)
 
-### Key Features Used
-- **Temporal**: pickup_hour, pickup_day_of_week, is_weekend
-- **Trip Characteristics**: trip_duration_minutes, trip_speed_mph, trip_distance
-- **Fare Analysis**: fare_per_mile, fare_per_minute, log_trip_distance
-- **Location**: PULocationID, DOLocationID, pickup/dropoff zones
+**Models Trained:**
 
+- Linear Regression
+- Random Forest (Regressor & Classifier)
+- Logistic Regression
+- Neural Network (PyTorch)
+
+**Evaluation Metrics:**
+
+- Regression: MAE, RMSE, R²
+- Classification: Accuracy, Precision, Recall, F1, AUC-ROC
+
+**Key Features:**
+
+- Temporal: pickup_hour, pickup_day_of_week, is_weekend
+- Trip: trip_duration_minutes, trip_speed_mph, trip_distance
+- Fare: fare_per_mile, fare_per_minute, log_trip_distance
+- Location: PULocationID, DOLocationID, pickup/dropoff zones
+
+---
 This project is for educational purposes as part of a Big Data assignment.
