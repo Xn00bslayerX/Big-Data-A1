@@ -1,6 +1,6 @@
 import os
 import subprocess
-import json
+
 import re
 from typing import Any, Dict, List, Optional
 
@@ -215,7 +215,6 @@ def predict_batch(requests: List[PredictionRequest]):
 
 @app.get("/health")
 def health():
-    model_status = "loaded" if model is not None else "not_loaded"
     feature_mismatch = False
     if model is not None and hasattr(model, 'n_features_in_'):
         feature_mismatch = model.n_features_in_ != len(numeric_features)
@@ -233,7 +232,6 @@ def health():
 
 @app.get("/model/info")
 def model_info():
-    model_status = "loaded" if model is not None else "not_loaded"
     feature_mismatch = False
     if model is not None and hasattr(model, 'n_features_in_'):
         feature_mismatch = model.n_features_in_ != len(numeric_features)
