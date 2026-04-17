@@ -25,7 +25,11 @@ This project predicts NYC taxi trip tips and passenger tipping behavior using ma
 
 ## Getting Started
 
-### 1. Clone the repository
+### 1. Clone the repository and install dependencies
+
+```bash
+pip install -r requirements.txt
+```
 
 ### 2. Run Data Analysis & Model Training (Jupyter Notebook)
 

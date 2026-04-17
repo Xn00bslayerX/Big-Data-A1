@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Optional
 
 from fastapi import FastAPI, HTTPException
 import joblib
-from pydantic import BaseModel, validator
+from pydantic import BaseModel, Field, validator
 from sklearn.preprocessing import StandardScaler
 import uvicorn
 
@@ -80,7 +80,32 @@ else:
 
 
 class PredictionRequest(BaseModel):
-    features: Dict[str, float]
+    features: Dict[str, float] = Field(
+        example={
+            "VendorID": 1.0,
+            "passenger_count": 2.0,
+            "trip_distance": 5.0,
+            "RatecodeID": 1.0,
+            "PULocationID": 100.0,
+            "DOLocationID": 200.0,
+            "payment_type": 1.0,
+            "fare_amount": 20.0,
+            "extra": 0.5,
+            "mta_tax": 0.5,
+            "tolls_amount": 0.0,
+            "improvement_surcharge": 0.3,
+            "total_amount": 21.3,
+            "congestion_surcharge": 2.5,
+            "Airport_fee": 0.0,
+            "trip_duration_minutes": 15.0,
+            "trip_speed_mph": 20.0,
+            "log_trip_distance": 1.609,
+            "fare_per_mile": 4.0,
+            "fare_per_minute": 1.333,
+            "pickup_hour": 14.0,
+        },
+        description="All features required by the model. Note: tip_amount is NOT included (it's the target variable being predicted)."
+    )
 
     @validator("features", pre=True)
     def validate_features(cls, features):
