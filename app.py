@@ -10,13 +10,49 @@ from pydantic import BaseModel, Field, validator
 from sklearn.preprocessing import StandardScaler
 import uvicorn
 
+# Try to import torch for PyTorch model support; optional for serving
+try:
+    import torch
+    import torch.nn as nn
+    TORCH_AVAILABLE = True
+except ImportError:
+    TORCH_AVAILABLE = False
+    print("⚠ Warning: PyTorch not available. PyTorch models cannot be loaded.")
+
 app = FastAPI()
 
 
+# PyTorch Neural Network Model for Regression (needed for unpickling even if torch isn't installed)
+if TORCH_AVAILABLE:
+    class TipPredictionNN(nn.Module):
+        def __init__(self, input_size, hidden_size=64):
+            super(TipPredictionNN, self).__init__()
+            # Input layer -> First hidden layer
+            self.fc1 = nn.Linear(input_size, hidden_size)
+            # First hidden layer -> Second hidden layer
+            self.fc2 = nn.Linear(hidden_size, hidden_size)
+            # Second hidden layer -> Output layer
+            self.fc3 = nn.Linear(hidden_size, 1)
+            # ReLU activation
+            self.relu = nn.ReLU()
+            
+        def forward(self, x):
+            x = self.relu(self.fc1(x))
+            x = self.relu(self.fc2(x))
+            x = self.fc3(x)
+            return x
+else:
+    # Placeholder class for unpickling if torch not available
+    class TipPredictionNN:
+        def __init__(self, *args, **kwargs):
+            raise RuntimeError("PyTorch not installed. Cannot use PyTorch models.")
+
+
 # Model and scaler loading
-model: Optional[Any] = None
 numeric_features: List[str] = []
 scaler = StandardScaler()
+classification_model: Optional[Any] = None
+regression_model: Optional[Any] = None
 global prediction_id
 prediction_id = 0
 
@@ -60,23 +96,29 @@ else:
     print(
         f"✗ ERROR: classification_model.joblib not found at {classification_model_path}"
     )
-    raise HTTPException(
-        status_code=503,
-        detail=f"Classification model not loaded - file not found at {classification_model_path}",
-    )
+    classification_model = None
 
 print(f"Looking for regression model at: {regression_model_path}")
 if os.path.exists(regression_model_path):
-    regression_model = joblib.load(regression_model_path)
-    print(f"✓ Regression model loaded from {regression_model_path}")
-    if hasattr(regression_model, "n_features_in_"):
-        print(f"  Regression model expects {regression_model.n_features_in_} features.")
+    try:
+        regression_model = joblib.load(regression_model_path)
+        print(f"✓ Regression model loaded from {regression_model_path}")
+        if hasattr(regression_model, "n_features_in_"):
+            print(f"  Regression model expects {regression_model.n_features_in_} features.")
+    except Exception as e:
+        print(f"✗ ERROR loading regression model: {type(e).__name__}: {str(e)[:100]}")
+        print("  Continuing without regression model...")
+        regression_model = None
 else:
-    print(f"✗ ERROR: regression_model.joblib not found at {regression_model_path}")
-    raise HTTPException(
-        status_code=503,
-        detail=f"Regression model not loaded - file not found at {regression_model_path}",
-    )
+    print(f"✗ Warning: regression model not found at {regression_model_path}")
+    regression_model = None
+
+# Verify at least one model is loaded
+if not classification_model and not regression_model:
+    print("\n✗ CRITICAL ERROR: Neither classification nor regression model could be loaded!")
+    print("  Make sure the notebook has been executed to generate the model files.")
+else:
+    print("\n✓ At least one model loaded successfully.")
 
 
 class PredictionRequest(BaseModel):
@@ -162,23 +204,23 @@ def root():
 @app.post("/predict")
 def predict(request: PredictionRequest):
 
-    if model is None:
-        print("Error: Model is not loaded, cannot perform prediction.")
+    if regression_model is None:
+        print("Error: Regression model is not loaded, cannot perform prediction.")
         raise HTTPException(
             status_code=503,
-            detail="Model not loaded - model.joblib not found or failed to load",
+            detail="Regression model not loaded - model file not found or failed to load",
         )
 
     # Check if model feature count matches our current features
-    if hasattr(model, "n_features_in_") and model.n_features_in_ != len(
+    if hasattr(regression_model, "n_features_in_") and regression_model.n_features_in_ != len(
         numeric_features
     ):
         raise HTTPException(
             status_code=409,
             detail={
                 "error": "Model feature mismatch",
-                "message": f"Model was trained with {model.n_features_in_} features but current configuration uses {len(numeric_features)} features. The model needs to be retrained with the corrected feature set (excluding tip_amount to prevent data leakage).",
-                "model_features": model.n_features_in_,
+                "message": f"Model was trained with {regression_model.n_features_in_} features but current configuration uses {len(numeric_features)} features. The model needs to be retrained with the corrected feature set (excluding tip_amount to prevent data leakage).",
+                "model_features": regression_model.n_features_in_,
                 "current_features": len(numeric_features),
                 "required_features": numeric_features,
             },
@@ -207,7 +249,7 @@ def predict(request: PredictionRequest):
         input_data.append(float(value))
 
     input_scaled = scaler.transform([input_data])
-    prediction = model.predict(input_scaled)[0]
+    prediction = regression_model.predict(input_scaled)[0]
     global prediction_id
     prediction_id += 1
     return {
@@ -218,22 +260,22 @@ def predict(request: PredictionRequest):
 
 @app.post("/predict/batch")  # Accept up to 100 records for batch prediction
 def predict_batch(requests: List[PredictionRequest]):
-    if model is None:
+    if regression_model is None:
         raise HTTPException(
             status_code=503,
-            detail="Model not loaded - model.joblib not found or failed to load",
+            detail="Regression model not loaded - model file not found or failed to load",
         )
 
     # Check if model feature count matches our current features
-    if hasattr(model, "n_features_in_") and model.n_features_in_ != len(
+    if hasattr(regression_model, "n_features_in_") and regression_model.n_features_in_ != len(
         numeric_features
     ):
         raise HTTPException(
             status_code=409,
             detail={
                 "error": "Model feature mismatch",
-                "message": f"Model was trained with {model.n_features_in_} features but current configuration uses {len(numeric_features)} features. The model needs to be retrained with the corrected feature set (excluding tip_amount to prevent data leakage).",
-                "model_features": model.n_features_in_,
+                "message": f"Model was trained with {regression_model.n_features_in_} features but current configuration uses {len(numeric_features)} features. The model needs to be retrained with the corrected feature set (excluding tip_amount to prevent data leakage).",
+                "model_features": regression_model.n_features_in_,
                 "current_features": len(numeric_features),
                 "required_features": numeric_features,
             },
@@ -263,7 +305,7 @@ def predict_batch(requests: List[PredictionRequest]):
         input_data.append(row)
 
     input_scaled = scaler.transform(input_data)
-    predictions = model.predict(input_scaled)
+    predictions = regression_model.predict(input_scaled)
     global prediction_id
     results = []
     for pred in predictions:
@@ -280,16 +322,17 @@ def predict_batch(requests: List[PredictionRequest]):
 @app.get("/health")
 def health():
     feature_mismatch = False
-    if model is not None and hasattr(model, "n_features_in_"):
-        feature_mismatch = model.n_features_in_ != len(numeric_features)
+    if regression_model is not None and hasattr(regression_model, "n_features_in_"):
+        feature_mismatch = regression_model.n_features_in_ != len(numeric_features)
 
     return {
         "status": "ok",
-        "model_loaded": model is not None,
+        "regression_model_loaded": regression_model is not None,
+        "classification_model_loaded": classification_model is not None,
         "scaler_fitted": bool(numeric_features),
         "feature_count_match": not feature_mismatch,
-        "model_features": model.n_features_in_
-        if model and hasattr(model, "n_features_in_")
+        "regression_model_features": regression_model.n_features_in_
+        if regression_model and hasattr(regression_model, "n_features_in_")
         else None,
         "current_features": len(numeric_features),
         "data_leakage_fixed": "tip_amount" not in numeric_features,
@@ -299,15 +342,19 @@ def health():
 @app.get("/model/info")
 def model_info():
     feature_mismatch = False
-    if model is not None and hasattr(model, "n_features_in_"):
-        feature_mismatch = model.n_features_in_ != len(numeric_features)
+    if regression_model is not None and hasattr(regression_model, "n_features_in_"):
+        feature_mismatch = regression_model.n_features_in_ != len(numeric_features)
 
     return {
-        "model_loaded": model is not None,
+        "regression_model_loaded": regression_model is not None,
+        "classification_model_loaded": classification_model is not None,
         "required_features": numeric_features,
         "feature_count": len(numeric_features),
-        "model_feature_count": model.n_features_in_
-        if model and hasattr(model, "n_features_in_")
+        "regression_model_feature_count": regression_model.n_features_in_
+        if regression_model and hasattr(regression_model, "n_features_in_")
+        else None,
+        "classification_model_feature_count": classification_model.n_features_in_
+        if classification_model and hasattr(classification_model, "n_features_in_")
         else None,
         "feature_mismatch": feature_mismatch,
         "data_leakage_status": "fixed"
