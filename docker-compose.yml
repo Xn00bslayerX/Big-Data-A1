@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   api:
     build: .
@@ -21,11 +19,12 @@ services:
     restart: unless-stopped
 
   mlflow:
-    image: ghcr.io/mlflow/mlflow:v2.11.3
+    image: python:3.12-slim
     container_name: bigdata_mlflow
+    working_dir: /mlflow
     environment:
       - MLFLOW_TRACKING_URI=http://0.0.0.0:5000
-    command: mlflow server --host 0.0.0.0 --port 5000 --backend-store-uri /mlflow/mlruns --default-artifact-root /mlflow/mlruns
+    command: bash -c "pip install mlflow==2.11.3 && mlflow server --host 0.0.0.0 --port 5000 --backend-store-uri /mlflow/mlruns --default-artifact-root /mlflow/mlruns"
     volumes:
       - ./mlruns:/mlflow/mlruns
     ports:
