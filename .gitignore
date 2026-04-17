@@ -1,6 +1,7 @@
 data/
 venv/
 __pycache__/
+.pytest_cache/
 
 # MLflow tracking server data. This should be generated programmatically and not committed to version control.
 mlruns/
